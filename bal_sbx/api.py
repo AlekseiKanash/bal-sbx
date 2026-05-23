@@ -9,7 +9,8 @@ is implementation detail. Typical use::
 
 The constructor's ``system_ops`` parameter exists so tests can inject a fake;
 production callers leave it `None` and let the manager call
-:meth:`SystemOps.detect` itself.
+:meth:`SystemOps.detect` itself. ``settings`` defaults to
+:meth:`Settings.load` so the global TOML (if any) is honored automatically.
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ from enum import Enum
 from bal_sbx.backends.base import Sandbox
 from bal_sbx.backends.factory import build_sandbox
 from bal_sbx.backends.user import UserSandbox
+from bal_sbx.config.settings import Settings
+from bal_sbx.config.workspace import WorkspaceConfig
 from bal_sbx.core.errors import SandboxNotFound
 from bal_sbx.core.identity import SandboxIdentity
 from bal_sbx.core.metadata import SandboxMetadata
@@ -56,16 +59,21 @@ class SandboxManager:
         system_ops: SystemOps | None = None,
         registry: JsonFileRegistry | None = None,
         path_layout: PathLayout | None = None,
-        privilege_mode: str = "cached",
+        settings: Settings | None = None,
     ) -> None:
+        self._settings = settings if settings is not None else Settings.load()
         self._path_layout = path_layout if path_layout is not None else PathLayout.default()
         self._system_ops = (
-            system_ops if system_ops is not None else SystemOps.detect(privilege_mode)
+            system_ops
+            if system_ops is not None
+            else SystemOps.detect(self._settings.privilege_mode)
         )
         self._registry = (
             registry
             if registry is not None
-            else JsonFileRegistry(self._path_layout.registry_path)
+            else JsonFileRegistry(
+                self._settings.registry_path or self._path_layout.registry_path
+            )
         )
 
     def capabilities(self) -> Capabilities:
@@ -105,7 +113,16 @@ class SandboxManager:
         if mode is SandboxMode.UNSAFE:
             return DirectLauncher()
         sandbox = self.get_or_create(workspace_path)
-        return SandboxedLauncher(sandbox, self._system_ops, self._registry)
+        workspace_config = WorkspaceConfig(
+            sandbox.identity.workspace, self._path_layout
+        )
+        return SandboxedLauncher(
+            sandbox,
+            self._system_ops,
+            self._registry,
+            denylist=self._settings.env_denylist,
+            workspace_config=workspace_config,
+        )
 
     def unsafe(self, workspace_path: str) -> AgentLauncher:
         return self.launcher(workspace_path, mode=SandboxMode.UNSAFE)

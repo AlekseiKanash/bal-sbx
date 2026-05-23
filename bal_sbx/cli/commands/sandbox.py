@@ -1,7 +1,6 @@
 """`bal-sbx sandbox` — sandbox lifecycle subcommands.
 
-`run` dispatches on `args.subcommand` to a `cmd_*` function. The `env`
-stub raises NotImplementedError until step 12 wires it up.
+`run` dispatches on `args.subcommand` to a `cmd_*` function.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ from typing import NoReturn
 from bal_sbx.api import SandboxManager
 from bal_sbx.cli.output import emit, emit_sandbox_table, emit_stale_reports
 from bal_sbx.cli.workspace import resolve_workspace
+from bal_sbx.config.workspace import WorkspaceConfig
 
 ManagerFactory = Callable[[], SandboxManager]
 
@@ -97,8 +97,29 @@ def cmd_cleanup(args: Namespace, manager_factory: ManagerFactory) -> int:
 
 
 def cmd_env(args: Namespace, manager_factory: ManagerFactory) -> int:
-    del args, manager_factory
-    raise NotImplementedError("cmd_env lands in step 12")
+    workspace = resolve_workspace(args.workspace)
+    manager = manager_factory()
+    config = WorkspaceConfig(workspace, manager._path_layout)
+
+    if args.unset is not None:
+        config.unset_env(args.unset)
+        return 0
+
+    if args.key is None:
+        env = config.env()
+        for key in sorted(env):
+            emit(f"{key}={env[key]}")
+        return 0
+
+    if args.value is None:
+        env = config.env()
+        if args.key not in env:
+            return 1
+        emit(env[args.key])
+        return 0
+
+    config.set_env(args.key, args.value)
+    return 0
 
 
 _HANDLERS: dict[str, Callable[[Namespace, ManagerFactory], int]] = {

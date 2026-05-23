@@ -7,9 +7,13 @@ later move from code to data (see plan A7) without an API break, and to
 guard a future code path where host env may bleed through (e.g. when the
 caller decides to seed from `os.environ`).
 
-`overrides` are applied last. If an override key is also in `denylist`, the
-override still wins — the caller (e.g. workspace config) is presumed to have
-made the choice deliberately.
+Precedence (low → high): defaults < `workspace_env` < `overrides`. The
+``BAL_SANDBOX_*`` identity keys are written *before* workspace env so a
+workspace cannot rewrite its own sandbox identity unless it also sets the
+key via the explicit-overrides path.
+
+If an override or workspace key is also in `denylist`, the value still
+wins — the caller is presumed to have made the choice deliberately.
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ DEFAULT_PATH = "/usr/local/bin:/usr/bin:/bin"
 def build_sandbox_env(
     identity: SandboxIdentity,
     overrides: Mapping[str, str] | None = None,
+    workspace_env: Mapping[str, str] | None = None,
     denylist: Iterable[str] = DEFAULT_DENYLIST,
     base_path: str = DEFAULT_PATH,
 ) -> dict[str, str]:
@@ -46,6 +51,8 @@ def build_sandbox_env(
         "BAL_SANDBOX_ID": identity.id,
         "BAL_SANDBOX_WORKSPACE": identity.workspace,
     }
+    if workspace_env:
+        env.update(workspace_env)
     if overrides:
         env.update(overrides)
     return env

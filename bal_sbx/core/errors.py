@@ -23,3 +23,7 @@ class PlatformUnsupported(BalSbxError):
 
 class RegistryCorrupt(BalSbxError):
     pass
+
+
+class ConfigInvalid(BalSbxError):
+    pass

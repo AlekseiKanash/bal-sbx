@@ -77,6 +77,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--yes", action="store_true", help="skip confirmation prompt"
     )
 
+    env_p = sandbox_sub.add_parser(
+        "env", help="get/set persistent per-workspace env vars"
+    )
+    env_p.add_argument("--workspace", default=None, help="workspace root (default: inferred)")
+    env_p.add_argument("--unset", metavar="KEY", default=None, help="remove a key")
+    env_p.add_argument("key", nargs="?", default=None, help="env key (list all if omitted)")
+    env_p.add_argument("value", nargs="?", default=None, help="env value (sets when present)")
+
     return parser
 
 
