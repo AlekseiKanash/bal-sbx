@@ -70,8 +70,8 @@ tests/
 | [05](done_step_05.md) | Platform implementations | Real Linux and macOS providers (`useradd`/`dscl`, `setfacl`/`chmod +a`). |
 | [06](done_step_06.md) | `UserSandbox` backend | Full create → status → repair → destroy lifecycle. |
 | [07](done_step_07.md) | Exec layer & launchers | `AgentLauncher` Protocol, `SandboxedLauncher`, `DirectLauncher`. |
-| [08](step_08.md) | Public facade `SandboxManager` | The API `bal` will import. |
-| [09](step_09.md) | CLI scaffold & `exec` | `bal-sbx exec -- <cmd>` and `bal-sbx capabilities`. |
+| [08](done_step_08.md) | Public facade `SandboxManager` | The API `bal` will import. |
+| [09](done_step_09.md) | CLI scaffold & `exec` | `bal-sbx exec -- <cmd>` and `bal-sbx capabilities`. |
 
 **Phase 1 exit criteria:** `bal-sbx exec --workspace ./demo -- id -un` prints the sandbox username on Linux and macOS; `--unsafe` prints the host username; unit suite green.
 

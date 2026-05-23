@@ -1,5 +1,3 @@
-import sys
+from bal_sbx.cli.main import main
 
-if __name__ == "__main__":
-    print("bal-sbx CLI is not wired yet (see step 09 in dev_roadmap).", file=sys.stderr)
-    sys.exit(0)
+raise SystemExit(main())
