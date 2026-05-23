@@ -16,12 +16,14 @@ from collections.abc import Callable, Sequence
 from bal_sbx.api import SandboxManager
 from bal_sbx.cli.commands import capabilities as capabilities_cmd
 from bal_sbx.cli.commands import exec_cmd
+from bal_sbx.cli.commands import sandbox as sandbox_cmd
 
 ManagerFactory = Callable[[], SandboxManager]
 
 COMMANDS: dict[str, Callable[[argparse.Namespace, ManagerFactory], int]] = {
     "capabilities": capabilities_cmd.run,
     "exec": exec_cmd.run,
+    "sandbox": sandbox_cmd.run,
 }
 
 
@@ -39,9 +41,21 @@ def build_parser() -> argparse.ArgumentParser:
     exec_p.add_argument("--unsafe", action="store_true", help="bypass sandbox; run as host user")
     exec_p.add_argument("cmd", nargs=argparse.REMAINDER, help="command and args after --")
 
-    # Placeholder group; steps 10/11/12 attach the actual subcommands.
     sandbox_p = sub.add_parser("sandbox", help="sandbox lifecycle commands")
-    sandbox_p.add_subparsers(dest="subcommand", required=True)
+    sandbox_sub = sandbox_p.add_subparsers(dest="subcommand", required=True)
+
+    sandbox_sub.add_parser("list", help="list registered sandboxes")
+
+    create_p = sandbox_sub.add_parser(
+        "create", help="create a sandbox for the workspace"
+    )
+    create_p.add_argument("--workspace", default=None, help="workspace root (default: inferred)")
+    create_p.add_argument(
+        "--type", default="user", choices=["user"], help="backend kind"
+    )
+
+    cd_p = sandbox_sub.add_parser("cd", help="enter the sandbox via a login shell")
+    cd_p.add_argument("--workspace", default=None, help="workspace root (default: inferred)")
 
     return parser
 

@@ -9,6 +9,9 @@ from __future__ import annotations
 import sys
 
 from bal_sbx.api import Capabilities
+from bal_sbx.core.identity import SandboxIdentity
+from bal_sbx.core.metadata import SandboxMetadata
+from bal_sbx.core.status import SandboxStatus
 
 
 def emit(message: str, *, level: str = "info") -> None:
@@ -26,3 +29,20 @@ def emit_capabilities(caps: Capabilities) -> None:
 
 def emit_unsafe_banner() -> None:
     print("MODE: UNSAFE", file=sys.stderr)
+
+
+def emit_sandbox_table(
+    rows: list[tuple[SandboxIdentity, SandboxMetadata, SandboxStatus]],
+) -> None:
+    headers = ("ID", "WORKSPACE", "STATUS", "LAST USED")
+    cells = [
+        (identity.id, meta.workspace, status.value, meta.last_used_at)
+        for identity, meta, status in rows
+    ]
+    widths = [
+        max(len(headers[i]), max((len(row[i]) for row in cells), default=0))
+        for i in range(len(headers))
+    ]
+    print(" ".join(headers[i].ljust(widths[i]) for i in range(len(headers))).rstrip())
+    for row in cells:
+        print(" ".join(row[i].ljust(widths[i]) for i in range(len(headers))).rstrip())
