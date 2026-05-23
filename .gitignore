@@ -1,0 +1,32 @@
+# Python
+*.pyc
+__pycache__
+*.egg-info
+dist
+build
+*.egg
+
+# Virtual envs
+venv/
+.venv/
+
+# setuptools-scm generated version file
+bal_sbx/_version.py
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/
+
+# Local Claude settings (per-machine)
+.claude/settings.local.json

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "roadmap": {
+      "command": "python3",
+      "args": [
+        "/Users/akanash/Projects/llm/bal-sbx/.claude/mcp_servers/roadmap/server.py"
+      ]
+    }
+  }
+}
