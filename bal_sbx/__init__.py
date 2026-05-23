@@ -7,6 +7,7 @@ from bal_sbx.api import Capabilities, SandboxManager, SandboxMode
 from bal_sbx.core import errors
 from bal_sbx.core.identity import SandboxIdentity
 from bal_sbx.core.metadata import SandboxMetadata
+from bal_sbx.core.staleness import StaleReport
 from bal_sbx.core.status import SandboxStatus
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     "SandboxMetadata",
     "SandboxMode",
     "SandboxStatus",
+    "StaleReport",
     "__version__",
     "errors",
 ]

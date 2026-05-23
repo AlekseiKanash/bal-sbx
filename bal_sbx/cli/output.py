@@ -11,6 +11,7 @@ import sys
 from bal_sbx.api import Capabilities
 from bal_sbx.core.identity import SandboxIdentity
 from bal_sbx.core.metadata import SandboxMetadata
+from bal_sbx.core.staleness import StaleReport
 from bal_sbx.core.status import SandboxStatus
 
 
@@ -46,3 +47,9 @@ def emit_sandbox_table(
     print(" ".join(headers[i].ljust(widths[i]) for i in range(len(headers))).rstrip())
     for row in cells:
         print(" ".join(row[i].ljust(widths[i]) for i in range(len(headers))).rstrip())
+
+
+def emit_stale_reports(reports: list[StaleReport], *, action: str) -> None:
+    for report in reports:
+        statuses = ",".join(s.value for s in report.statuses) or "ok"
+        print(f"{report.identity.id} {action}: {statuses}")

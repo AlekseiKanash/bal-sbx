@@ -1,8 +1,7 @@
 """`bal-sbx sandbox` — sandbox lifecycle subcommands.
 
-`run` dispatches on `args.subcommand` to a `cmd_*` function. Stubs for
-`repair`, `cleanup`, and `env` raise NotImplementedError until steps 11
-and 12 fill them in (and register their argparse parsers in `main.py`).
+`run` dispatches on `args.subcommand` to a `cmd_*` function. The `env`
+stub raises NotImplementedError until step 12 wires it up.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from collections.abc import Callable
 from typing import NoReturn
 
 from bal_sbx.api import SandboxManager
-from bal_sbx.cli.output import emit, emit_sandbox_table
+from bal_sbx.cli.output import emit, emit_sandbox_table, emit_stale_reports
 from bal_sbx.cli.workspace import resolve_workspace
 
 ManagerFactory = Callable[[], SandboxManager]
@@ -61,13 +60,40 @@ def _enter(sandbox) -> NoReturn:
 
 
 def cmd_repair(args: Namespace, manager_factory: ManagerFactory) -> int:
-    del args, manager_factory
-    raise NotImplementedError("cmd_repair lands in step 11")
+    manager = manager_factory()
+    reports = manager.repair_all(dry_run=args.dry_run)
+    if not reports:
+        emit("All sandboxes healthy.")
+        return 0
+    action = "would repair" if args.dry_run else "repaired"
+    emit_stale_reports(reports, action=action)
+    return 0
 
 
 def cmd_cleanup(args: Namespace, manager_factory: ManagerFactory) -> int:
-    del args, manager_factory
-    raise NotImplementedError("cmd_cleanup lands in step 11")
+    manager = manager_factory()
+    candidates = manager.cleanup_stale(dry_run=True)
+    if not candidates:
+        emit("No stale sandboxes to clean up.")
+        return 0
+
+    action = "would remove" if args.dry_run else "to remove"
+    emit_stale_reports(candidates, action=action)
+
+    if args.dry_run:
+        return 0
+
+    if not args.yes:
+        answer = input(
+            f"Destroy {len(candidates)} sandbox(es)? [y/N]: "
+        ).strip().lower()
+        if answer != "y":
+            emit("Aborted.")
+            return 0
+
+    manager.cleanup_stale(dry_run=False)
+    emit(f"Removed {len(candidates)} sandbox(es).")
+    return 0
 
 
 def cmd_env(args: Namespace, manager_factory: ManagerFactory) -> int:

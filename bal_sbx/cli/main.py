@@ -57,6 +57,26 @@ def build_parser() -> argparse.ArgumentParser:
     cd_p = sandbox_sub.add_parser("cd", help="enter the sandbox via a login shell")
     cd_p.add_argument("--workspace", default=None, help="workspace root (default: inferred)")
 
+    repair_p = sandbox_sub.add_parser(
+        "repair", help="repair stale sandboxes in place"
+    )
+    repair_p.add_argument(
+        "--workspace", default=None, help="workspace root (default: inferred)"
+    )
+    repair_p.add_argument(
+        "--dry-run", action="store_true", help="show what would be repaired without acting"
+    )
+
+    cleanup_p = sandbox_sub.add_parser(
+        "cleanup", help="remove unrecoverable sandbox entries"
+    )
+    cleanup_p.add_argument(
+        "--dry-run", action="store_true", help="show what would be removed without acting"
+    )
+    cleanup_p.add_argument(
+        "--yes", action="store_true", help="skip confirmation prompt"
+    )
+
     return parser
 
 

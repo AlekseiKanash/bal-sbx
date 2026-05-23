@@ -26,6 +26,7 @@ from bal_sbx.core.errors import SandboxNotFound
 from bal_sbx.core.identity import SandboxIdentity
 from bal_sbx.core.metadata import SandboxMetadata
 from bal_sbx.core.paths import PathLayout
+from bal_sbx.core.staleness import StaleReport, detect_stale
 from bal_sbx.core.status import SandboxStatus
 from bal_sbx.exec.launcher import AgentLauncher, DirectLauncher, SandboxedLauncher
 from bal_sbx.registry.json_file import JsonFileRegistry
@@ -125,3 +126,33 @@ class SandboxManager:
         sandbox = build_sandbox("user", identity, self._system_ops)
         sandbox.destroy()
         self._registry.delete(identity.id)
+
+    def _reports(self) -> list[StaleReport]:
+        reports: list[StaleReport] = []
+        for _sid, meta in self._registry.list():
+            identity = SandboxIdentity.from_workspace(meta.workspace, self._path_layout)
+            reports.append(detect_stale(identity, meta, self._system_ops))
+        return reports
+
+    def repair_all(self, dry_run: bool = False) -> list[StaleReport]:
+        reports = [r for r in self._reports() if r.statuses]
+        if dry_run:
+            return reports
+        for report in reports:
+            if SandboxStatus.MISSING_WORKSPACE in report.statuses:
+                continue
+            if SandboxStatus.INVALID_METADATA in report.statuses:
+                continue
+            sandbox = UserSandbox(report.identity, self._system_ops)
+            sandbox.repair()
+        return reports
+
+    def cleanup_stale(self, dry_run: bool = False) -> list[StaleReport]:
+        candidates = [r for r in self._reports() if not r.recoverable]
+        if dry_run:
+            return candidates
+        for report in candidates:
+            sandbox = UserSandbox(report.identity, self._system_ops)
+            sandbox.destroy()
+            self._registry.delete(report.identity.id)
+        return candidates
