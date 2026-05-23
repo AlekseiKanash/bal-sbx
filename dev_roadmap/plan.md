@@ -66,10 +66,10 @@ tests/
 | [01](done_step_01.md) | Project skeleton & tooling | `pip install -e .` and `pytest` work on an empty package. |
 | [02](done_step_02.md) | Core domain: identity, paths, errors | Deterministic IDs, `PathLayout`, exception hierarchy, status enum, metadata dataclass. |
 | [03](done_step_03.md) | JSON registry | `JsonFileRegistry` with atomic writes and corruption recovery. |
-| [04](step_04.md) | System layer ABCs + fakes | Provider interfaces and the in-memory fakes used by every later test. |
-| [05](step_05.md) | Platform implementations | Real Linux and macOS providers (`useradd`/`dscl`, `setfacl`/`chmod +a`). |
-| [06](step_06.md) | `UserSandbox` backend | Full create → status → repair → destroy lifecycle. |
-| [07](step_07.md) | Exec layer & launchers | `AgentLauncher` Protocol, `SandboxedLauncher`, `DirectLauncher`. |
+| [04](done_step_04.md) | System layer ABCs + fakes | Provider interfaces and the in-memory fakes used by every later test. |
+| [05](done_step_05.md) | Platform implementations | Real Linux and macOS providers (`useradd`/`dscl`, `setfacl`/`chmod +a`). |
+| [06](done_step_06.md) | `UserSandbox` backend | Full create → status → repair → destroy lifecycle. |
+| [07](done_step_07.md) | Exec layer & launchers | `AgentLauncher` Protocol, `SandboxedLauncher`, `DirectLauncher`. |
 | [08](step_08.md) | Public facade `SandboxManager` | The API `bal` will import. |
 | [09](step_09.md) | CLI scaffold & `exec` | `bal-sbx exec -- <cmd>` and `bal-sbx capabilities`. |
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Minimal MCP server exposing get_next_step over stdio.
 
-Wraps .claude/skills/roadmap-next-step/find_next.py so the resolver logic stays
+Wraps .claude/skills/roadmap.next-step/find_next.py so the resolver logic stays
 in one place. The script is invoked as a subprocess for each tool call; the
 output becomes the text content of the MCP tool response.
 """
@@ -20,7 +20,7 @@ PROTOCOL_VERSION = "2024-11-05"
 SCRIPT = (
     Path(__file__).resolve().parent.parent.parent
     / "skills"
-    / "roadmap-next-step"
+    / "roadmap.next-step"
     / "find_next.py"
 )
 
