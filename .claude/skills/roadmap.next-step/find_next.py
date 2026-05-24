@@ -20,7 +20,7 @@ import re
 import sys
 from pathlib import Path
 
-PENDING_PREFIXES = ("open_", "to_do_", "")
+PENDING_PREFIXES = ("open_", "to_do_", "pending_")
 STEP_RE = re.compile(r"^(done_|in_progress_|open_|to_do_)?step_(\d+)\.md$")
 
 

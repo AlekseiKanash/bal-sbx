@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from argparse import Namespace
 from collections.abc import Callable
-from typing import NoReturn
 
 from bal_sbx.api import SandboxManager
 from bal_sbx.cli.output import emit, emit_sandbox_table, emit_stale_reports
@@ -38,25 +37,6 @@ def cmd_create(args: Namespace, manager_factory: ManagerFactory) -> int:
         f"(user={identity.user}, home={identity.home})"
     )
     return 0
-
-
-def cmd_cd(args: Namespace, manager_factory: ManagerFactory) -> int:
-    workspace = resolve_workspace(args.workspace)
-    manager = manager_factory()
-    identity = manager.resolve(workspace)
-    if manager._registry.get(identity.id) is None:
-        emit(
-            "SandboxNotFound: run 'bal-sbx sandbox create' first",
-            level="error",
-        )
-        return 2
-    sandbox = manager.get_or_create(workspace)
-    _enter(sandbox)
-
-
-def _enter(sandbox) -> NoReturn:
-    sandbox.enter()
-    raise RuntimeError("sandbox.enter returned unexpectedly")
 
 
 def cmd_repair(args: Namespace, manager_factory: ManagerFactory) -> int:
@@ -125,7 +105,6 @@ def cmd_env(args: Namespace, manager_factory: ManagerFactory) -> int:
 _HANDLERS: dict[str, Callable[[Namespace, ManagerFactory], int]] = {
     "list": cmd_list,
     "create": cmd_create,
-    "cd": cmd_cd,
     "repair": cmd_repair,
     "cleanup": cmd_cleanup,
     "env": cmd_env,

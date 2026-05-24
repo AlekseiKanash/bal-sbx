@@ -61,15 +61,34 @@ def test_revoke_uses_minus_a_with_same_spec(broker, tmp_path):
     )
 
 
-def test_is_granted_true_when_ls_lists_user(broker, monkeypatch):
+def test_is_granted_true_when_ls_lists_user_with_prefix(broker, monkeypatch):
+    """Real macOS `ls -lde` emits `user:<name>` (with the `user:` prefix)."""
     completed = subprocess.CompletedProcess(
         args=["ls", "-lde", "/w"],
         returncode=0,
-        stdout="drwxr-xr-x   3 root  wheel  96 May 23 12:00 /w\n 0: alice allow read,write,execute\n",
+        stdout=(
+            "drwxr-xr-x   3 root  wheel  96 May 23 12:00 /w\n"
+            " 0: user:alice allow list,add_file,search,delete\n"
+        ),
         stderr="",
     )
     monkeypatch.setattr("bal_sbx.system.acl.macos.subprocess.run", lambda *a, **kw: completed)
     assert MacosAclManager(broker).is_granted("/w", "alice") is True
+
+
+def test_is_granted_false_for_orphaned_uuid_principal(broker, monkeypatch):
+    """If the user has been deleted, `ls -lde` prints the bare UUID — not granted."""
+    completed = subprocess.CompletedProcess(
+        args=["ls", "-lde", "/w"],
+        returncode=0,
+        stdout=(
+            "drwxr-xr-x   3 root  wheel  96 May 23 12:00 /w\n"
+            " 0: 3FB3E780-4FEF-4B49-A2BE-4011C8BF94E1 allow list,add_file\n"
+        ),
+        stderr="",
+    )
+    monkeypatch.setattr("bal_sbx.system.acl.macos.subprocess.run", lambda *a, **kw: completed)
+    assert MacosAclManager(broker).is_granted("/w", "alice") is False
 
 
 def test_is_granted_false_when_user_absent(broker, monkeypatch):
@@ -77,6 +96,20 @@ def test_is_granted_false_when_user_absent(broker, monkeypatch):
         args=["ls", "-lde", "/w"],
         returncode=0,
         stdout="drwxr-xr-x   3 root  wheel  96 May 23 12:00 /w\n",
+        stderr="",
+    )
+    monkeypatch.setattr("bal_sbx.system.acl.macos.subprocess.run", lambda *a, **kw: completed)
+    assert MacosAclManager(broker).is_granted("/w", "alice") is False
+
+
+def test_is_granted_false_when_different_user_listed(broker, monkeypatch):
+    completed = subprocess.CompletedProcess(
+        args=["ls", "-lde", "/w"],
+        returncode=0,
+        stdout=(
+            "drwxr-xr-x   3 root  wheel  96 May 23 12:00 /w\n"
+            " 0: user:bob allow list,add_file\n"
+        ),
         stderr="",
     )
     monkeypatch.setattr("bal_sbx.system.acl.macos.subprocess.run", lambda *a, **kw: completed)

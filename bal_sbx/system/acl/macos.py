@@ -70,7 +70,10 @@ class MacosAclManager(AclManager):
         )
         if result.returncode != 0:
             return False
-        needle = f" {username} allow"
+        # `ls -lde` prints active user ACEs as `<N>: user:<name> allow <rights>`.
+        # For deleted principals it falls back to the bare UUID, which we
+        # treat as not-granted (the named user we asked about no longer maps).
+        needle = f" user:{username} allow"
         return any(needle in line for line in result.stdout.splitlines())
 
     def is_supported(self) -> bool:

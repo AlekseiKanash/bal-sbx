@@ -79,9 +79,9 @@ tests/
 
 | # | Title | Goal |
 |---|---|---|
-| [10](step_10.md) | `sandbox list` / `create` / `cd` | Inspection and explicit-creation commands. |
-| [11](step_11.md) | `repair`, `cleanup`, stale detection | Every stale variant from the strategy doc is detected and recoverable. |
-| [12](step_12.md) | Settings, workspace config, `env` command | Global + per-workspace configuration with documented precedence. |
+| [10](done_step_10.md) | `sandbox list` / `create` / `cd` | Inspection and explicit-creation commands. |
+| [11](done_step_11.md) | `repair`, `cleanup`, stale detection | Every stale variant from the strategy doc is detected and recoverable. |
+| [12](done_step_12.md) | Settings, workspace config, `env` command | Global + per-workspace configuration with documented precedence. |
 
 **Phase 2 exit criteria:** `bal-sbx sandbox list` shows accurate per-sandbox status; `repair` and `cleanup` produce idempotent results; `sandbox env KEY VALUE` persists across sessions; settings precedence is CLI > workspace > global > defaults.
 

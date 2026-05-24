@@ -51,6 +51,18 @@ The sandbox is the primary object. Agents are attached to sandboxes; they do not
 
 ## Installation
 
+For local dev / running from a clone, use the install script:
+
+```bash
+git clone https://github.com/<you>/bal-sbx
+cd bal-sbx
+./install.sh
+```
+
+It creates `.venv/`, does an editable install, and symlinks the entry point into `~/.local/bin/bal-sbx`. Re-run `./install.sh` after `git pull` to resync dependencies; code edits don't need a re-install (the symlink tracks the source). Override the target dir with `BAL_SBX_BIN_DIR=/some/dir ./install.sh`.
+
+Once published, the package will also be installable via:
+
 ```bash
 pip install bal-sbx
 ```
@@ -68,24 +80,39 @@ Python 3.11 or newer.
 
 ## CLI usage
 
+The primary form is `bal-sbx <command>` — one positional, runs inside the sandbox for the current workspace. The sandbox is created on demand. `<command>` is a shell string, so quote multi-word commands.
+
+```bash
+# Drop into an interactive sandboxed shell (workspace = cwd)
+bal-sbx sh
+
+# Run a script via its shebang
+bal-sbx ./script.py
+
+# Multi-word commands: quote them
+bal-sbx "python script.py --flag value"
+
+# Run an agent
+bal-sbx claude
+
+# Bypass the sandbox; prints "MODE: UNSAFE" to stderr
+bal-sbx --unsafe claude
+
+# Override workspace inference
+bal-sbx --workspace /tmp/ws sh
+```
+
+Management subcommands (`sandbox`, `capabilities`) are reserved and dispatch separately:
+
 ```bash
 # Probe what this host supports
 bal-sbx capabilities
 
-# Create a sandbox for the current directory
+# Create a sandbox eagerly (otherwise auto-created on first `bal-sbx <cmd>`)
 bal-sbx sandbox create
 
 # List known sandboxes
 bal-sbx sandbox list
-
-# Run something inside the sandbox (workspace = cwd by default)
-bal-sbx exec -- claude
-
-# Run unsandboxed (explicit opt-out, visible in output)
-bal-sbx exec --unsafe -- claude
-
-# Enter the sandbox interactively
-bal-sbx sandbox cd
 
 # Set a persistent sandbox-scoped env var
 bal-sbx sandbox env ANTHROPIC_BASE_URL http://localhost:11434
@@ -97,7 +124,7 @@ bal-sbx sandbox repair
 bal-sbx sandbox cleanup --dry-run
 ```
 
-`--workspace PATH` overrides cwd inference on any command.
+The CLI is a thin demo wrapper around the library — `bal` and other consumers use `SandboxManager` directly.
 
 ---
 
@@ -224,7 +251,7 @@ Precedence: CLI flag > workspace config > global settings > built-in defaults.
 ```bash
 git clone https://github.com/<you>/bal-sbx
 cd bal-sbx
-pip install -e ".[dev]"
+./install.sh        # editable install + symlink in ~/.local/bin
 pytest
 ```
 
