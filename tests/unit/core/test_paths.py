@@ -34,7 +34,6 @@ def test_home_for_and_workspace_link_for():
 def test_layout_defaults():
     layout = PathLayout(home_root="/home", registry_path="/tmp/r.json")
     assert layout.workspace_config_dir == ".bal"
-    assert layout.workspace_config_file == ".bal/config.json"
 
 
 def test_layout_is_frozen():

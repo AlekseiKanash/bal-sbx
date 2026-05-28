@@ -4,19 +4,39 @@ from __future__ import annotations
 
 import os
 import shutil
-from typing import NoReturn
+from collections.abc import Sequence
+from typing import NamedTuple, NoReturn
 
 from bal_sbx.backends.base import Sandbox
 from bal_sbx.core.errors import SandboxBroken
 from bal_sbx.core.identity import SandboxIdentity
+from bal_sbx.core.shared_tools import Permission
 from bal_sbx.core.status import SandboxStatus
 from bal_sbx.system.ops import SystemOps
 
 
+class ToolGrant(NamedTuple):
+    """One ACL-bearing entry derived from a `SharedTool` at lifecycle time.
+
+    The list is resolved at the manager level (workspace ⊕ global config,
+    paths-that-exist filter, permission subset) and passed in so the backend
+    stays config-agnostic.
+    """
+
+    path: str
+    permissions: frozenset[Permission]
+
+
 class UserSandbox(Sandbox):
-    def __init__(self, identity: SandboxIdentity, system_ops: SystemOps) -> None:
+    def __init__(
+        self,
+        identity: SandboxIdentity,
+        system_ops: SystemOps,
+        shared_tool_grants: Sequence[ToolGrant] = (),
+    ) -> None:
         self.identity = identity
         self._ops = system_ops
+        self._shared_tool_grants = tuple(shared_tool_grants)
 
     def create(self) -> None:
         identity = self.identity
@@ -29,11 +49,30 @@ class UserSandbox(Sandbox):
             ops.home.link_workspace(identity.home, identity.workspace)
         if not ops.acl.is_granted(identity.workspace, identity.user):
             ops.acl.grant(identity.workspace, identity.user)
+        self._reconcile_shared_tools()
+
+    def _reconcile_shared_tools(self) -> None:
+        identity = self.identity
+        for grant in self._shared_tool_grants:
+            if not grant.permissions:
+                continue
+            if self._ops.acl.is_granted(grant.path, identity.user, grant.permissions):
+                continue
+            self._ops.acl.grant(grant.path, identity.user, grant.permissions)
 
     def destroy(self) -> None:
         identity = self.identity
         ops = self._ops
         failures: list[str] = []
+
+        for grant in self._shared_tool_grants:
+            if not grant.permissions:
+                continue
+            try:
+                if ops.acl.is_granted(grant.path, identity.user, grant.permissions):
+                    ops.acl.revoke(grant.path, identity.user, grant.permissions)
+            except Exception as exc:
+                failures.append(f"acl.revoke({grant.path}): {exc!r}")
 
         if ops.acl.is_granted(identity.workspace, identity.user):
             try:
@@ -71,6 +110,11 @@ class UserSandbox(Sandbox):
             return SandboxStatus.BROKEN_SYMLINK
         if not ops.acl.is_granted(identity.workspace, identity.user):
             return SandboxStatus.DANGLING_ACL
+        for grant in self._shared_tool_grants:
+            if not grant.permissions:
+                continue
+            if not ops.acl.is_granted(grant.path, identity.user, grant.permissions):
+                return SandboxStatus.DANGLING_ACL
         return SandboxStatus.OK
 
     def repair(self) -> list[SandboxStatus]:
@@ -90,8 +134,17 @@ class UserSandbox(Sandbox):
         if ops.home.workspace_link_target(identity.home) != identity.workspace:
             ops.home.link_workspace(identity.home, identity.workspace)
             fixed.append(SandboxStatus.BROKEN_SYMLINK)
+        acl_fixed = False
         if not ops.acl.is_granted(identity.workspace, identity.user):
             ops.acl.grant(identity.workspace, identity.user)
+            acl_fixed = True
+        for grant in self._shared_tool_grants:
+            if not grant.permissions:
+                continue
+            if not ops.acl.is_granted(grant.path, identity.user, grant.permissions):
+                ops.acl.grant(grant.path, identity.user, grant.permissions)
+                acl_fixed = True
+        if acl_fixed:
             fixed.append(SandboxStatus.DANGLING_ACL)
         return fixed
 

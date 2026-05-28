@@ -1,4 +1,4 @@
-"""Tests for `bal-sbx sandbox env`."""
+"""Tests for `bal-sbx sandbox env` — operates on the registry's config sections."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _workspace(tmp_path):
     return ws
 
 
-def test_env_set_writes_workspace_config(tmp_path, fake_system_ops):
+def test_env_set_writes_per_sandbox_config(tmp_path, fake_system_ops):
     ws = _workspace(tmp_path)
     manager = _manager(tmp_path, fake_system_ops)
     rc = main(
@@ -36,10 +36,10 @@ def test_env_set_writes_workspace_config(tmp_path, fake_system_ops):
         manager_factory=lambda: manager,
     )
     assert rc == 0
-    cfg_path = ws / ".bal" / "config.json"
-    assert cfg_path.exists()
-    raw = json.loads(cfg_path.read_text())
-    assert raw["env"]["FOO"] == "bar"
+    identity = manager.resolve(str(ws))
+    stored = manager._registry.get(identity.id)
+    assert stored is not None
+    assert stored.config.env == {"FOO": "bar"}
 
 
 def test_env_get_returns_value_and_zero_exit(capsys, tmp_path, fake_system_ops):
@@ -112,8 +112,8 @@ def test_env_unset_removes_key(tmp_path, fake_system_ops):
     assert rc == 1
 
 
-def test_env_does_not_create_sandbox(tmp_path, fake_system_ops):
-    """`env` is registry-free: managing config must not provision users/homes."""
+def test_env_does_not_provision_user_or_home(tmp_path, fake_system_ops):
+    """env is a config-only operation: no user/home/ACL provisioning."""
     ws = _workspace(tmp_path)
     manager = _manager(tmp_path, fake_system_ops)
     main(
@@ -121,4 +121,85 @@ def test_env_does_not_create_sandbox(tmp_path, fake_system_ops):
         manager_factory=lambda: manager,
     )
     assert fake_system_ops.users.users == set()
-    assert manager._registry.list() == []
+    # The registry entry exists (so config can be persisted) but the
+    # sandbox itself was never provisioned.
+    identity = manager.resolve(str(ws))
+    stored = manager._registry.get(identity.id)
+    assert stored is not None
+    assert not fake_system_ops.home.exists(identity.home)
+
+
+def test_env_global_set_writes_global_config(tmp_path, fake_system_ops):
+    manager = _manager(tmp_path, fake_system_ops)
+    rc = main(
+        ["sandbox", "env", "--global", "EDITOR", "vim"],
+        manager_factory=lambda: manager,
+    )
+    assert rc == 0
+    assert manager._registry.global_config().env == {"EDITOR": "vim"}
+
+
+def test_env_global_get_returns_value(capsys, tmp_path, fake_system_ops):
+    manager = _manager(tmp_path, fake_system_ops)
+    main(["sandbox", "env", "--global", "EDITOR", "vim"], manager_factory=lambda: manager)
+    capsys.readouterr()
+
+    rc = main(["sandbox", "env", "--global", "EDITOR"], manager_factory=lambda: manager)
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == "vim"
+
+
+def test_env_global_list_only_shows_global_keys(capsys, tmp_path, fake_system_ops):
+    ws = _workspace(tmp_path)
+    manager = _manager(tmp_path, fake_system_ops)
+    main(["sandbox", "env", "--global", "GK", "gv"], manager_factory=lambda: manager)
+    main(
+        ["sandbox", "env", "--workspace", str(ws), "WK", "wv"],
+        manager_factory=lambda: manager,
+    )
+    capsys.readouterr()
+
+    main(["sandbox", "env", "--global"], manager_factory=lambda: manager)
+    out = capsys.readouterr().out.splitlines()
+    assert out == ["GK=gv"]
+
+
+def test_env_global_unset_removes_key(tmp_path, fake_system_ops):
+    manager = _manager(tmp_path, fake_system_ops)
+    main(["sandbox", "env", "--global", "EDITOR", "vim"], manager_factory=lambda: manager)
+    rc = main(
+        ["sandbox", "env", "--global", "--unset", "EDITOR"],
+        manager_factory=lambda: manager,
+    )
+    assert rc == 0
+    assert manager._registry.global_config().env == {}
+
+
+def test_env_per_sandbox_does_not_affect_global(tmp_path, fake_system_ops):
+    ws = _workspace(tmp_path)
+    manager = _manager(tmp_path, fake_system_ops)
+    main(["sandbox", "env", "--global", "K", "global"], manager_factory=lambda: manager)
+    main(
+        ["sandbox", "env", "--workspace", str(ws), "K", "workspace"],
+        manager_factory=lambda: manager,
+    )
+    assert manager._registry.global_config().env == {"K": "global"}
+    identity = manager.resolve(str(ws))
+    assert manager._registry.get(identity.id).config.env == {"K": "workspace"}
+
+
+def test_env_on_disk_file_is_the_registry(tmp_path, fake_system_ops):
+    """Sanity: the storage is sandboxes.json, not a per-workspace file."""
+    ws = _workspace(tmp_path)
+    manager = _manager(tmp_path, fake_system_ops)
+    main(
+        ["sandbox", "env", "--workspace", str(ws), "FOO", "bar"],
+        manager_factory=lambda: manager,
+    )
+    legacy = ws / ".bal" / "config.json"
+    assert not legacy.exists()
+    registry_path = tmp_path / "registry.json"
+    raw = json.loads(registry_path.read_text())
+    assert "sandboxes" in raw
+    only_entry = next(iter(raw["sandboxes"].values()))
+    assert only_entry["config"]["env"] == {"FOO": "bar"}

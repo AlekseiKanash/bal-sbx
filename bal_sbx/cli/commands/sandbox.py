@@ -7,11 +7,12 @@ from __future__ import annotations
 
 from argparse import Namespace
 from collections.abc import Callable
+from dataclasses import replace
 
 from bal_sbx.api import SandboxManager
 from bal_sbx.cli.output import emit, emit_sandbox_table, emit_stale_reports
 from bal_sbx.cli.workspace import resolve_workspace
-from bal_sbx.config.workspace import WorkspaceConfig
+from bal_sbx.core.config import SandboxConfig
 
 ManagerFactory = Callable[[], SandboxManager]
 
@@ -76,29 +77,83 @@ def cmd_cleanup(args: Namespace, manager_factory: ManagerFactory) -> int:
     return 0
 
 
+def _global_config(manager: SandboxManager) -> SandboxConfig:
+    return manager._registry.global_config()
+
+
+def _set_global_env(manager: SandboxManager, key: str, value: str) -> None:
+    cfg = _global_config(manager)
+    new_env = {**cfg.env, key: value}
+    manager._registry.set_global_config(replace(cfg, env=new_env))
+
+
+def _unset_global_env(manager: SandboxManager, key: str) -> None:
+    cfg = _global_config(manager)
+    if key not in cfg.env:
+        return
+    new_env = {k: v for k, v in cfg.env.items() if k != key}
+    manager._registry.set_global_config(replace(cfg, env=new_env))
+
+
 def cmd_env(args: Namespace, manager_factory: ManagerFactory) -> int:
-    workspace = resolve_workspace(args.workspace)
     manager = manager_factory()
-    config = WorkspaceConfig(workspace, manager._path_layout)
+
+    if args.is_global:
+        cfg = _global_config(manager)
+        env = dict(cfg.env)
+
+        if args.unset is not None:
+            _unset_global_env(manager, args.unset)
+            return 0
+
+        if args.key is None:
+            for key in sorted(env):
+                emit(f"{key}={env[key]}")
+            return 0
+
+        if args.value is None:
+            if args.key not in env:
+                return 1
+            emit(env[args.key])
+            return 0
+
+        _set_global_env(manager, args.key, args.value)
+        return 0
+
+    workspace = resolve_workspace(args.workspace)
 
     if args.unset is not None:
-        config.unset_env(args.unset)
+        def _drop(cfg: SandboxConfig) -> SandboxConfig:
+            if args.unset not in cfg.env:
+                return cfg
+            new_env = {k: v for k, v in cfg.env.items() if k != args.unset}
+            return replace(cfg, env=new_env)
+
+        manager.update_config(workspace, _drop)
         return 0
 
     if args.key is None:
-        env = config.env()
+        identity = manager.resolve(workspace)
+        meta = manager._registry.get(identity.id)
+        env = dict(meta.config.env) if meta is not None else {}
         for key in sorted(env):
             emit(f"{key}={env[key]}")
         return 0
 
     if args.value is None:
-        env = config.env()
+        identity = manager.resolve(workspace)
+        meta = manager._registry.get(identity.id)
+        env = dict(meta.config.env) if meta is not None else {}
         if args.key not in env:
             return 1
         emit(env[args.key])
         return 0
 
-    config.set_env(args.key, args.value)
+    def _set(cfg: SandboxConfig) -> SandboxConfig:
+        new_env = {**cfg.env, args.key: args.value}
+        return replace(cfg, env=new_env)
+
+    manager.update_config(workspace, _set)
     return 0
 
 

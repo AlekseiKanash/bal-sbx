@@ -1,6 +1,5 @@
-"""Configuration: global Settings (TOML) and per-workspace config (JSON)."""
+"""Configuration: global Settings (TOML)."""
 
 from bal_sbx.config.settings import Settings
-from bal_sbx.config.workspace import WorkspaceConfig
 
-__all__ = ["Settings", "WorkspaceConfig"]
+__all__ = ["Settings"]

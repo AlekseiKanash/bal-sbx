@@ -23,7 +23,6 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import NoReturn, Protocol
 
 from bal_sbx.backends.base import Sandbox
-from bal_sbx.config.workspace import WorkspaceConfig
 from bal_sbx.core.errors import SandboxBroken
 from bal_sbx.core.status import SandboxStatus
 from bal_sbx.exec.environment import DEFAULT_DENYLIST, build_sandbox_env
@@ -56,13 +55,17 @@ class SandboxedLauncher:
         system_ops: SystemOps,
         registry: JsonFileRegistry,
         denylist: Iterable[str] = DEFAULT_DENYLIST,
-        workspace_config: WorkspaceConfig | None = None,
+        workspace_env: Mapping[str, str] | None = None,
+        shared_tool_paths: Sequence[str] = (),
+        shared_tool_env: Mapping[str, str] | None = None,
     ) -> None:
         self._sandbox = sandbox
         self._system_ops = system_ops
         self._registry = registry
         self._denylist = tuple(denylist)
-        self._workspace_config = workspace_config
+        self._workspace_env = dict(workspace_env) if workspace_env else None
+        self._shared_tool_paths = tuple(shared_tool_paths)
+        self._shared_tool_env = dict(shared_tool_env) if shared_tool_env else None
 
     def _prepare(
         self,
@@ -75,14 +78,13 @@ class SandboxedLauncher:
                 f"status is {status.value}"
             )
         self._registry.touch(self._sandbox.identity.id)
-        workspace_env = (
-            self._workspace_config.env() if self._workspace_config is not None else None
-        )
         env = build_sandbox_env(
             self._sandbox.identity,
             overrides=env_overrides,
-            workspace_env=workspace_env,
+            workspace_env=self._workspace_env,
             denylist=self._denylist,
+            extra_path_entries=self._shared_tool_paths,
+            extra_env=self._shared_tool_env,
         )
         return _env_pairs(env)
 

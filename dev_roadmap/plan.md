@@ -1,8 +1,8 @@
 # bal-sbx Implementation Roadmap
 
-This roadmap turns [`docs/bal_sandboxing_strategy.md`](../docs/bal_sandboxing_strategy.md) into 12 self-contained implementation steps. Each step is a **vertical slice**: by the end of it, something is runnable and tested.
+This roadmap turns [`docs/bal_sandboxing_strategy.md`](../docs/bal_sandboxing_strategy.md) into self-contained implementation steps. Each step is a **vertical slice**: by the end of it, something is runnable and tested.
 
-Scope of this roadmap: **Phase 1 (core sandbox) + Phase 2 (maintenance commands)** from the strategy doc. Phases 3 (Docker backend, runtime provisioning) and 4 (network policies, stronger isolation) are out of scope.
+Scope of this roadmap: **Phase 1 (core sandbox) + Phase 2 (maintenance commands) + Phase 3 (shared host tools / unified config)** from the strategy doc. Phase 4 (network policies, stronger isolation) is out of scope.
 
 ## How to use this roadmap
 
@@ -43,17 +43,19 @@ Anchor decisions made during planning. Each step assumes these and references th
 bal_sbx/
   __init__.py            api.py            __main__.py
   core/      identity.py  metadata.py  paths.py  status.py  errors.py
+             shared_tools.py  config.py
   registry/  json_file.py
   system/    ops.py  home.py  privilege.py
              users/  base.py  linux.py  macos.py
              acl/    base.py  linux.py  macos.py
   backends/  base.py  user.py  factory.py
   exec/      launcher.py  environment.py
-  config/    settings.py  workspace.py
+  config/    settings.py
+  discovery/ tools.py
   cli/       main.py  output.py
-             commands/  sandbox.py  exec.py
+             commands/  sandbox.py  exec.py  tools.py
 tests/
-  unit/      core/ registry/ system/ backends/ exec/ config/ cli/
+  unit/      core/ registry/ system/ backends/ exec/ config/ cli/ discovery/
   conftest.py
 ```
 
@@ -85,9 +87,19 @@ tests/
 
 **Phase 2 exit criteria:** `bal-sbx sandbox list` shows accurate per-sandbox status; `repair` and `cleanup` produce idempotent results; `sandbox env KEY VALUE` persists across sessions; settings precedence is CLI > workspace > global > defaults.
 
+### Phase 3 — Shared host tools
+
+| # | Title | Goal |
+|---|---|---|
+| [13](done_step_13.md) | Shared-tool data model + ACL subset + registry shape | `SharedTool`/`SandboxConfig`; ACLs accept a `read/write/execute` subset; registry gains `global` section + per-sandbox `config`; legacy shape auto-migrated on read. |
+| [14](done_step_14.md) | Lifecycle + launcher integration; remove `WorkspaceConfig` | `SandboxManager` resolves global ⊕ per-sandbox config; `UserSandbox` reconciles shared-tool ACLs on `create`/`repair` and revokes on `destroy`; `build_sandbox_env` learns `extra_path_entries`/`extra_env`; `WorkspaceConfig` deleted; `env` CLI subcommands write the registry. |
+| [15](done_step_15.md) | CLI `tools` + discovery | `bal-sbx tools discover/list/add/remove` with `--global|--sandbox|--workspace`; `tools remove` revokes ACLs before deleting config. |
+
+**Phase 3 exit criteria:** A sandbox configured with `global.shared_tools.brew` can run `bal-sbx run -- brew --version` successfully on macOS; `bal-sbx tools discover --apply --global` populates the registry; `bal-sbx tools remove brew --global` revokes ACLs across all active sandboxes before deleting the config entry; per-sandbox dependencies (pip --user, npm) still install into the sandbox HOME, never the host.
+
 ## After the roadmap
 
-Once step 12 is done, `bal` can adopt the library by replacing its `os.execvp(agent, ...)` call sites with:
+Once Phase 3 is done, `bal` can adopt the library by replacing its `os.execvp(agent, ...)` call sites with:
 
 ```python
 from bal_sbx import SandboxManager, SandboxMode

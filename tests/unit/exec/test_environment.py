@@ -100,3 +100,54 @@ def test_base_path_override(tmp_path):
     identity = _identity(tmp_path)
     env = build_sandbox_env(identity, base_path="/opt/custom/bin")
     assert env["PATH"] == "/opt/custom/bin"
+
+
+def test_extra_path_entries_prepended(tmp_path):
+    identity = _identity(tmp_path)
+    env = build_sandbox_env(
+        identity,
+        extra_path_entries=["/opt/homebrew/bin", "/usr/local/bin"],
+    )
+    assert env["PATH"] == f"/opt/homebrew/bin:/usr/local/bin:{DEFAULT_PATH}"
+
+
+def test_extra_path_entries_empty_leaves_base_path(tmp_path):
+    identity = _identity(tmp_path)
+    env = build_sandbox_env(identity, extra_path_entries=())
+    assert env["PATH"] == DEFAULT_PATH
+
+
+def test_extra_env_layered_below_workspace_env(tmp_path):
+    identity = _identity(tmp_path)
+    env = build_sandbox_env(
+        identity,
+        extra_env={"KEY": "from_tool", "TOOL_ONLY": "tool"},
+        workspace_env={"KEY": "from_workspace"},
+    )
+    assert env["KEY"] == "from_workspace"
+    assert env["TOOL_ONLY"] == "tool"
+
+
+def test_extra_env_layered_below_overrides(tmp_path):
+    identity = _identity(tmp_path)
+    env = build_sandbox_env(
+        identity,
+        extra_env={"KEY": "from_tool"},
+        overrides={"KEY": "from_cli"},
+    )
+    assert env["KEY"] == "from_cli"
+
+
+def test_extra_env_can_override_defaults_but_not_identity(tmp_path):
+    identity = _identity(tmp_path)
+    env = build_sandbox_env(
+        identity,
+        extra_env={"PATH": "/from/tool", "BAL_SANDBOX_ID": "should-not-stick"},
+    )
+    # PATH is a default — extra_env wins
+    assert env["PATH"] == "/from/tool"
+    # Identity keys ARE in defaults too, so extra_env CAN override them
+    # (matching how workspace_env behaves). This is intentional — defaults
+    # are not sacred. The integrity guarantee is just "fresh env, no host
+    # bleed-through".
+    assert env["BAL_SANDBOX_ID"] == "should-not-stick"

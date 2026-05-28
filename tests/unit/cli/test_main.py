@@ -28,7 +28,7 @@ def test_main_help_flag_prints_help_to_stdout(capsys):
 
 
 def test_commands_table_covers_management_subcommands():
-    assert set(COMMANDS) == {"capabilities", "sandbox"}
+    assert set(COMMANDS) == {"capabilities", "sandbox", "tools"}
 
 
 def test_reserved_words_are_the_only_subcommands():

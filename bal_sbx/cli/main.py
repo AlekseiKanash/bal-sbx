@@ -7,12 +7,12 @@ Two argv shapes:
    The sandbox for the resolved workspace is created on demand. The command
    is executed via `sh -c <cmd>` inside the sandbox.
 
-2. **Management subcommand** — `bal-sbx sandbox …` or `bal-sbx capabilities`.
-   These dispatch through an argparse subparser tree.
+2. **Management subcommand** — `bal-sbx sandbox …`, `bal-sbx tools …`, or
+   `bal-sbx capabilities`. These dispatch through an argparse subparser tree.
 
-Reserved subcommand names (`sandbox`, `capabilities`) shadow the run-in-sandbox
-path. To run a host script that happens to be named `sandbox`, pass it as
-`./sandbox`.
+Reserved subcommand names (`sandbox`, `tools`, `capabilities`) shadow the
+run-in-sandbox path. To run a host script that happens to be named
+`sandbox`, pass it as `./sandbox`.
 """
 
 from __future__ import annotations
@@ -24,16 +24,18 @@ from typing import NoReturn
 from bal_sbx.api import SandboxManager, SandboxMode
 from bal_sbx.cli.commands import capabilities as capabilities_cmd
 from bal_sbx.cli.commands import sandbox as sandbox_cmd
+from bal_sbx.cli.commands import tools as tools_cmd
 from bal_sbx.cli.output import emit, emit_unsafe_banner
 from bal_sbx.cli.workspace import resolve_workspace
 
 ManagerFactory = Callable[[], SandboxManager]
 
-RESERVED = ("sandbox", "capabilities")
+RESERVED = ("sandbox", "tools", "capabilities")
 
 COMMANDS: dict[str, Callable] = {
     "capabilities": capabilities_cmd.run,
     "sandbox": sandbox_cmd.run,
+    "tools": tools_cmd.run,
 }
 
 _USAGE = "usage: bal-sbx [--workspace PATH] [--unsafe] <command>"
@@ -42,6 +44,7 @@ _HELP = """\
 usage:
   bal-sbx [--workspace PATH] [--unsafe] <command>
   bal-sbx sandbox {list,create,repair,cleanup,env} [...]
+  bal-sbx tools {list,add,remove,discover} [...]
   bal-sbx capabilities
 
 Run <command> inside the sandbox for the current workspace (created on demand).
@@ -59,7 +62,12 @@ Management:
   bal-sbx sandbox create [--workspace PATH]
   bal-sbx sandbox repair [--workspace PATH] [--dry-run]
   bal-sbx sandbox cleanup [--dry-run] [--yes]
-  bal-sbx sandbox env [--workspace PATH] [KEY [VALUE]] [--unset KEY]
+  bal-sbx sandbox env [--workspace PATH | --global] [KEY [VALUE]] [--unset KEY]
+  bal-sbx tools list      [--workspace PATH | --sandbox ID | --global]
+  bal-sbx tools add NAME  --path P [--path P ...] --perm read --perm execute
+                          [--env KEY=VAL ...] [--workspace PATH | --sandbox ID | --global]
+  bal-sbx tools remove NAME [--workspace PATH | --sandbox ID | --global]
+  bal-sbx tools discover  [--apply [--workspace PATH | --sandbox ID | --global]]
   bal-sbx capabilities
 """
 
@@ -68,8 +76,19 @@ class _UsageError(Exception):
     pass
 
 
+def _add_scope_flags(parser) -> None:
+    parser.add_argument("--workspace", default=None, help="workspace root (default: cwd)")
+    parser.add_argument("--sandbox", default=None, help="sandbox id (e.g. bal_abc123)")
+    parser.add_argument(
+        "--global",
+        dest="is_global",
+        action="store_true",
+        help="operate on registry global config",
+    )
+
+
 def build_parser():
-    """Argparse parser for management subcommands only (`sandbox`, `capabilities`).
+    """Argparse parser for management subcommands only.
 
     Run-in-sandbox dispatch bypasses argparse entirely so the user's command
     string never collides with argparse's own flag parsing.
@@ -100,11 +119,48 @@ def build_parser():
     cleanup_p.add_argument("--dry-run", action="store_true")
     cleanup_p.add_argument("--yes", action="store_true")
 
-    env_p = sandbox_sub.add_parser("env", help="get/set persistent per-workspace env vars")
+    env_p = sandbox_sub.add_parser("env", help="get/set persistent env vars (workspace or global)")
     env_p.add_argument("--workspace", default=None)
+    env_p.add_argument(
+        "--global",
+        dest="is_global",
+        action="store_true",
+        help="operate on registry global env (default: per-sandbox)",
+    )
     env_p.add_argument("--unset", metavar="KEY", default=None)
     env_p.add_argument("key", nargs="?", default=None)
     env_p.add_argument("value", nargs="?", default=None)
+
+    tools_p = sub.add_parser("tools", help="manage shared host tools")
+    tools_sub = tools_p.add_subparsers(dest="subcommand", required=True)
+
+    list_p = tools_sub.add_parser("list", help="list shared tools in a scope")
+    _add_scope_flags(list_p)
+
+    add_p = tools_sub.add_parser("add", help="add a shared tool to a scope")
+    add_p.add_argument("name")
+    add_p.add_argument("--path", dest="paths", action="append", required=True)
+    add_p.add_argument(
+        "--perm", dest="perms", action="append", required=True,
+        choices=["read", "execute", "write", "env"],
+    )
+    add_p.add_argument(
+        "--env", dest="envs", action="append", default=[], metavar="KEY=VAL",
+    )
+    _add_scope_flags(add_p)
+
+    remove_p = tools_sub.add_parser("remove", help="remove a shared tool (revokes ACLs)")
+    remove_p.add_argument("name")
+    _add_scope_flags(remove_p)
+
+    discover_p = tools_sub.add_parser(
+        "discover", help="detect host-installed tools and optionally apply",
+    )
+    discover_p.add_argument(
+        "--apply", action="store_true",
+        help="write discovered tools into the chosen scope",
+    )
+    _add_scope_flags(discover_p)
 
     return parser
 

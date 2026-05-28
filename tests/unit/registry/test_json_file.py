@@ -4,8 +4,10 @@ from datetime import datetime
 
 import pytest
 
+from bal_sbx.core.config import SandboxConfig
 from bal_sbx.core.errors import RegistryCorrupt
 from bal_sbx.core.metadata import SandboxMetadata
+from bal_sbx.core.shared_tools import Permission, SharedTool
 from bal_sbx.registry.json_file import JsonFileRegistry
 
 
@@ -14,12 +16,14 @@ def _meta(
     created: str = "2026-01-01T00:00:00+00:00",
     last: str = "2026-01-01T00:00:00+00:00",
     agent: str | None = "claude",
+    config: SandboxConfig | None = None,
 ) -> SandboxMetadata:
     return SandboxMetadata(
         workspace=workspace,
         created_at=created,
         last_used_at=last,
         agent=agent,
+        config=config or SandboxConfig(),
     )
 
 
@@ -152,6 +156,14 @@ def test_corruption_raises_registry_corrupt(tmp_path):
         reg.list()
 
 
+def test_corruption_raises_on_non_object_top_level(tmp_path):
+    path = tmp_path / "sandboxes.json"
+    path.write_text("[]")
+    reg = JsonFileRegistry(str(path))
+    with pytest.raises(RegistryCorrupt):
+        reg.list()
+
+
 def test_parent_directory_auto_created(tmp_path):
     path = tmp_path / "deep" / "nested" / "registry.json"
     reg = JsonFileRegistry(str(path))
@@ -160,10 +172,87 @@ def test_parent_directory_auto_created(tmp_path):
     assert reg.get("bal_abcdef") == _meta()
 
 
-def test_on_disk_format_is_id_keyed_dict(tmp_path):
+def test_on_disk_format_has_global_and_sandboxes_sections(tmp_path):
     path = tmp_path / "sandboxes.json"
     reg = JsonFileRegistry(str(path))
     reg.put("bal_abcdef", _meta())
     raw = json.loads(path.read_text())
-    assert list(raw.keys()) == ["bal_abcdef"]
-    assert raw["bal_abcdef"] == _meta().to_dict()
+    assert set(raw.keys()) == {"global", "sandboxes"}
+    assert raw["sandboxes"] == {"bal_abcdef": _meta().to_dict()}
+    assert raw["global"] == {}
+
+
+def test_global_config_default_empty(tmp_path):
+    reg = JsonFileRegistry(str(tmp_path / "sandboxes.json"))
+    assert reg.global_config() == SandboxConfig()
+
+
+def test_global_config_round_trip(tmp_path):
+    reg = JsonFileRegistry(str(tmp_path / "sandboxes.json"))
+    cfg = SandboxConfig(
+        env={"EDITOR": "vim"},
+        shared_tools={
+            "brew": SharedTool(
+                name="brew",
+                paths=("/opt/homebrew/bin",),
+                permissions=frozenset({Permission.READ, Permission.EXECUTE}),
+            ),
+        },
+    )
+    reg.set_global_config(cfg)
+    assert reg.global_config() == cfg
+
+
+def test_global_config_preserved_when_putting_sandboxes(tmp_path):
+    reg = JsonFileRegistry(str(tmp_path / "sandboxes.json"))
+    reg.set_global_config(SandboxConfig(env={"K": "v"}))
+    reg.put("bal_abcdef", _meta())
+    assert reg.global_config().env == {"K": "v"}
+    assert reg.get("bal_abcdef") == _meta()
+
+
+def test_setting_global_preserves_sandboxes(tmp_path):
+    reg = JsonFileRegistry(str(tmp_path / "sandboxes.json"))
+    reg.put("bal_abcdef", _meta(workspace="/w1"))
+    reg.set_global_config(SandboxConfig(env={"K": "v"}))
+    assert reg.get("bal_abcdef") == _meta(workspace="/w1")
+
+
+def test_per_sandbox_config_round_trip(tmp_path):
+    reg = JsonFileRegistry(str(tmp_path / "sandboxes.json"))
+    cfg = SandboxConfig(
+        env={"OPENAI_API_KEY": "sk-..."},
+        shared_tools={
+            "node": SharedTool(
+                name="node",
+                paths=("/opt/homebrew/bin/node",),
+                permissions=frozenset({Permission.READ, Permission.EXECUTE}),
+            ),
+        },
+    )
+    reg.put("bal_abcdef", _meta(config=cfg))
+    assert reg.get("bal_abcdef").config == cfg
+
+
+def test_legacy_flat_shape_loads_and_migrates_on_save(tmp_path):
+    """Old `{id: metadata}` shape (no 'global'/'sandboxes' keys) is auto-migrated."""
+    path = tmp_path / "sandboxes.json"
+    legacy = {
+        "bal_legacy": {
+            "workspace": "/old",
+            "created_at": "2025-01-01T00:00:00+00:00",
+            "last_used_at": "2025-01-01T00:00:00+00:00",
+            "agent": None,
+        }
+    }
+    path.write_text(json.dumps(legacy))
+    reg = JsonFileRegistry(str(path))
+    loaded = reg.get("bal_legacy")
+    assert loaded is not None
+    assert loaded.workspace == "/old"
+    # Any save rewrites in the new shape.
+    reg.put("bal_new", _meta(workspace="/new"))
+    rewritten = json.loads(path.read_text())
+    assert set(rewritten.keys()) == {"global", "sandboxes"}
+    assert "bal_legacy" in rewritten["sandboxes"]
+    assert "bal_new" in rewritten["sandboxes"]

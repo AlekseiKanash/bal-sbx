@@ -14,7 +14,6 @@ class PathLayout:
     home_root: str
     registry_path: str
     workspace_config_dir: str = ".bal"
-    workspace_config_file: str = ".bal/config.json"
 
     @classmethod
     def default(cls) -> "PathLayout":

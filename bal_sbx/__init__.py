@@ -6,19 +6,24 @@ except ImportError:
 from bal_sbx.api import Capabilities, SandboxManager, SandboxMode
 from bal_sbx.config.settings import Settings
 from bal_sbx.core import errors
+from bal_sbx.core.config import SandboxConfig
 from bal_sbx.core.identity import SandboxIdentity
 from bal_sbx.core.metadata import SandboxMetadata
+from bal_sbx.core.shared_tools import Permission, SharedTool
 from bal_sbx.core.staleness import StaleReport
 from bal_sbx.core.status import SandboxStatus
 
 __all__ = [
     "Capabilities",
+    "Permission",
+    "SandboxConfig",
     "SandboxIdentity",
     "SandboxManager",
     "SandboxMetadata",
     "SandboxMode",
     "SandboxStatus",
     "Settings",
+    "SharedTool",
     "StaleReport",
     "__version__",
     "errors",
